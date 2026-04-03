@@ -104,12 +104,25 @@ function getRows(stmt) {
 }
 
 function getOne(sql, params = []) {
-  const stmt = db.prepare(sql);
-  for (let i = 0; i < params.length; i++) stmt.bind(params[i], i + 1);
-  const row = stmt.step() ? stmt.getAsObject() : null;
-  stmt.free();
+  // 用 db.exec + 模板字符串替代 prepared statement，避免 sql.js bind 的兼容性问题
+  let finalSql = sql;
+  const values = [];
+  for (let i = 0; i < params.length; i++) {
+    const v = params[i];
+    if (typeof v === 'string') {
+      finalSql = finalSql.replace('?', `"${v.replace(/"/g, '""')}"`);
+    } else {
+      finalSql = finalSql.replace('?', String(v));
+    }
+  }
+  const result = db.exec(finalSql);
+  if (result.length === 0 || result[0].values.length === 0) return null;
+  const cols = result[0].columns;
+  const row = {};
+  cols.forEach((col, i) => { row[col] = result[0].values[0][i]; });
   return row;
 }
+
 
 function getAll(sql, params = []) {
   const stmt = db.prepare(sql);
@@ -363,3 +376,5 @@ initDB().then(() => {
 // 进程退出时保存数据库
 process.on('SIGINT', () => { saveDB(); process.exit(0); });
 process.on('SIGTERM', () => { saveDB(); process.exit(0); });
+
+Commit message: fix: rewrite getOne() to use db.exec instead of broken prepare/bind API
