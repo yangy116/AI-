@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 客服助手 - 健身房智能问答</title>
+<style>
+  :root {
+    --primary: #4F6EF7;
+    --primary-light: #6B85FF;
+    --primary-dark: #3A56D4;
+    --bg: #F5F7FA;
+    --card: #FFFFFF;
+    --text: #1A1A2E;
+    --text-secondary: #6B7280;
+    --border: #E5E7EB;
+    --success: #10B981;
+    --danger: #EF4444;
+    --warning: #F59E0B;
+    --bot-bg: #F0F3FF;
+    --user-bg: #4F6EF7;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ========== Header ========== */
+  .header {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 12px rgba(79, 110, 247, 0.3);
+    z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .header-left .logo {
+    width: 36px; height: 36px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .header-left h1 { font-size: 18px; font-weight: 600; }
+  .header-left p { font-size: 12px; opacity: 0.85; }
+  .header-right { display: flex; gap: 8px; }
+  .header-btn {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .header-btn:hover { background: rgba(255,255,255,0.25); }
+  .header-btn .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+  }
+  .header-btn .status-dot.online { background: #4ADE80; }
+  .header-btn .status-dot.offline { background: #F87171; }
+
+  /* ========== Main ========== */
+  .main { flex: 1; display: flex; overflow: hidden; }
+
+  /* ========== Sidebar (Admin Only) ========== */
+  .sidebar {
+    width: 300px;
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    display: none;
+    flex-direction: column;
+    transition: transform 0.3s, width 0.3s;
+    overflow: hidden;
+  }
+  .admin-mode .sidebar { display: flex; }
+  .sidebar.hidden { width: 0; transform: translateX(-300px); }
+  .sidebar-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sidebar-header h2 { font-size: 15px; font-weight: 600; }
+  .sidebar-header .count {
+    background: var(--primary);
+    color: white;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+  .sidebar-search {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-search input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    outline: none;
+    transition: border 0.2s;
+  }
+  .sidebar-search input:focus { border-color: var(--primary); }
+  .qa-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .qa-item {
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 4px;
+  }
+  .qa-item:hover { background: var(--bg); }
+  .qa-item .q-text {
+    font-size: 13px; font-weight: 500; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .qa-item .a-preview {
+    font-size: 12px; color: var(--text-secondary);
+    margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .qa-item .qa-meta { display: flex; gap: 6px; margin-top: 6px; }
+  .qa-item .tag {
+    font-size: 11px; padding: 1px 6px; border-radius: 4px;
+    background: #E8F5E9; color: #2E7D32;
+  }
+  .qa-item .tag.hot { background: #FFF3E0; color: #E65100; }
+  .qa-item .qa-actions { display: flex; gap: 4px; margin-top: 6px; }
+  .qa-item .qa-actions button {
+    font-size: 11px; padding: 2px 8px;
+    border: 1px solid var(--border); background: white;
+    border-radius: 4px; cursor: pointer; color: var(--text-secondary);
+  }
+  .qa-item .qa-actions button:hover { border-color: var(--primary); color: var(--primary); }
+  .qa-item .qa-actions button.delete:hover { border-color: var(--danger); color: var(--danger); }
+  .sidebar-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .btn-add {
+    width: 100%; padding: 10px;
+    background: var(--primary); color: white; border: none;
+    border-radius: 8px; cursor: pointer;
+    font-size: 13px; font-weight: 500;
+    transition: background 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn-add:hover { background: var(--primary-dark); }
+
+  /* ========== Chat ========== */
+  .chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .stats-bar {
+    display: none;
+    gap: 16px; padding: 10px 24px;
+    background: var(--card); border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--text-secondary);
+  }
+  .admin-mode .stats-bar { display: flex; }
+  .stat-item { display: flex; align-items: center; gap: 4px; }
+  .stat-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+  .stat-item .dot.warn { background: var(--warning); }
+  .chat-messages {
+    flex: 1; overflow-y: auto; padding: 24px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .message { display: flex; gap: 10px; max-width: 75%; animation: msgIn 0.3s ease; }
+  @keyframes msgIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .message.bot { align-self: flex-start; }
+  .message.user { align-self: flex-end; flex-direction: row-reverse; }
+  .message .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .message.bot .avatar { background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: white; }
+  .message.user .avatar { background: #E5E7EB; }
+  .message .bubble { padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
+  .message.bot .bubble { background: var(--bot-bg); border-bottom-left-radius: 4px; }
+  .message.user .bubble { background: var(--user-bg); color: white; border-bottom-right-radius: 4px; }
+  .message .bubble .related-qa {
+    margin-top: 8px; padding-top: 8px;
+    border-top: 1px solid rgba(0,0,0,0.06);
+    font-size: 12px; color: var(--text-secondary);
+  }
+  .message .bubble .related-qa a {
+    color: var(--primary); cursor: pointer; text-decoration: none;
+  }
+  .message .bubble .related-qa a:hover { text-decoration: underline; }
+  .welcome {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 100%; text-align: center;
+    color: var(--text-secondary); gap: 16px;
+  }
+  .welcome .icon { font-size: 48px; opacity: 0.3; }
+  .welcome h3 { color: var(--text); font-size: 18px; }
+  .welcome p { max-width: 400px; font-size: 14px; line-height: 1.6; }
+  .quick-questions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+  .quick-q {
+    padding: 8px 16px; background: var(--card);
+    border: 1px solid var(--border); border-radius: 20px;
+    font-size: 13px; cursor: pointer; transition: all 0.2s; color: var(--text);
+  }
+  .quick-q:hover { border-color: var(--primary); color: var(--primary); background: var(--bot-bg); }
+  .chat-input-area { padding: 16px 24px; border-top: 1px solid var(--border); background: var(--card); }
+  .input-wrapper { display: flex; gap: 8px; align-items: flex-end; }
+  .input-wrapper textarea {
+    flex: 1; padding: 10px 14px; border: 1px solid var(--border);
+    border-radius: 10px; font-size: 14px; font-family: inherit;
+    resize: none; outline: none; max-height: 120px; line-height: 1.5; transition: border 0.2s;
+  }
+  .input-wrapper textarea:focus { border-color: var(--primary); }
+  .input-wrapper button {
+    width: 42px; height: 42px; background: var(--primary); color: white;
+    border: none; border-radius: 10px; cursor: pointer; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s; flex-shrink: 0;
+  }
+  .input-wrapper button:hover { background: var(--primary-dark); }
+  .input-wrapper button:disabled { background: #C0C7D6; cursor: not-allowed; }
+
+  /* ========== Modal ========== */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    z-index: 200; align-items: center; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--card); border-radius: 16px; width: 520px;
+    max-width: 90vw; max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15); animation: modalIn 0.25s ease;
+  }
+  @keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+  .modal-header {
+    padding: 20px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-header h2 { font-size: 16px; font-weight: 600; }
+  .modal-close {
+    width: 32px; height: 32px; border: none; background: var(--bg);
+    border-radius: 8px; cursor: pointer; font-size: 18px; color: var(--text-secondary);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal-close:hover { background: #E5E7EB; }
+  .modal-body { padding: 20px 24px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text); }
+  .form-group input, .form-group textarea, .form-group select {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 13px; font-family: inherit; outline: none; transition: border 0.2s;
+  }
+  .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--primary); }
+  .form-group textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+  .form-group .hint { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+  .keywords-input {
+    display: flex; flex-wrap: wrap; gap: 6px; padding: 6px;
+    border: 1px solid var(--border); border-radius: 8px; min-height: 40px; cursor: text;
+  }
+  .keywords-input:focus-within { border-color: var(--primary); }
+  .keywords-input .kw-tag {
+    background: var(--bot-bg); color: var(--primary); padding: 2px 8px;
+    border-radius: 4px; font-size: 12px; display: flex; align-items: center; gap: 4px;
+  }
+  .keywords-input .kw-tag .remove { cursor: pointer; font-size: 14px; }
+  .keywords-input input {
+    border: none !important; outline: none; flex: 1; min-width: 80px; padding: 4px; font-size: 13px;
+  }
+  .modal-footer {
+    padding: 16px 24px; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; gap: 8px;
+  }
+  .btn-cancel {
+    padding: 8px 20px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--text);
+  }
+  .btn-save {
+    padding: 8px 20px; background: var(--primary); color: white;
+    border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  .btn-save:hover { background: var(--primary-dark); }
+
+  /* ========== Admin Login Modal ========== */
+  .admin-modal .modal { width: 400px; }
+  .admin-modal .modal-body { text-align: center; padding: 30px 24px; }
+  .admin-modal .admin-icon { font-size: 48px; margin-bottom: 12px; }
+  .admin-modal .admin-title { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .admin-modal .admin-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
+  .admin-modal .password-group { text-align: left; margin-bottom: 20px; }
+  .admin-modal .password-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+  .admin-modal .password-group input {
+    width: 100%; padding: 10px 14px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px; outline: none; text-align: center;
+    letter-spacing: 4px;
+  }
+  .admin-modal .password-group input:focus { border-color: var(--primary); }
+  .admin-modal .password-error { color: var(--danger); font-size: 12px; margin-top: 8px; display: none; }
+  .admin-modal .btn-admin-login {
+    width: 100%; padding: 10px; background: var(--primary); color: white;
+    border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;
+  }
+  .admin-modal .btn-admin-login:hover { background: var(--primary-dark); }
+
+  /* ========== Toast ========== */
+  .toast-container { position: fixed; top: 20px; right: 20px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    padding: 12px 20px; border-radius: 10px; color: white; font-size: 13px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: toastIn 0.3s ease;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .toast.success { background: var(--success); }
+  .toast.error { background: var(--danger); }
+  .toast.info { background: var(--primary); }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+  .typing-indicator { display: flex; gap: 4px; padding: 4px 0; }
+  .typing-indicator span {
+    width: 6px; height: 6px; background: var(--primary);
+    border-radius: 50%; animation: typing 1.4s infinite;
+  }
+  .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing { 0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); } 30% { opacity: 1; transform: scale(1); } }
+
+  .file-input { display: none; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+
+  @media (max-width: 768px) {
+    .admin-mode .sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 150; box-shadow: 4px 0 20px rgba(0,0,0,0.1); }
+    .sidebar.hidden { transform: translateX(-100%); }
+    .message { max-width: 90%; }
+  }
+
+  /* ========== Loading ========== */
+  .loading-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.7);
+    z-index: 250; align-items: center; justify-content: center;
+  }
+  .loading-overlay.show { display: flex; }
+  .loading-spinner {
+    width: 40px; height: 40px; border: 4px solid var(--border);
+    border-top-color: var(--primary); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">🤖</div>
+    <div>
+      <h1>AI 客服助手</h1>
+      <p id="headerSubtitle">健身房智能问答</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <!-- 客户视图：只显示连接状态 -->
+    <button class="header-btn" id="statusBtn" title="服务状态">
+      <span class="status-dot online" id="statusDot"></span>
+      <span id="statusText">已连接</span>
+    </button>
+    <!-- 管理员视图：额外显示管理按钮 -->
+    <button class="header-btn admin-only" onclick="toggleSidebar()" style="display:none">📚 知识库</button>
+    <button class="header-btn admin-only" onclick="exportData()" style="display:none">📤 导出</button>
+    <button class="header-btn admin-only" onclick="document.getElementById('importFile').click()" style="display:none">📥 导入</button>
+    <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
+    <!-- 管理员入口/退出 -->
+    <button class="header-btn" id="adminToggleBtn" onclick="handleAdminToggle()">🔐 管理</button>
+  </div>
+</div>
+
+<div class="main" id="mainContainer">
+  <!-- 侧栏：仅管理员可见 -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2>知识库</h2>
+      <span class="count" id="qaCount">0</span>
+    </div>
+    <div class="sidebar-search">
+      <input type="text" placeholder="搜索问答..." id="searchInput" oninput="debounceFilter()">
+    </div>
+    <div class="qa-list" id="qaList"></div>
+    <div class="sidebar-footer">
+      <button class="btn-add" onclick="openModal()">➕ 添加问答</button>
+    </div>
+  </div>
+
+  <div class="chat-area">
+    <!-- 统计栏：仅管理员可见 -->
+    <div class="stats-bar">
+      <div class="stat-item"><span class="dot" id="serverDot"></span> <span id="serverStatus">服务器已连接</span></div>
+      <div class="stat-item" id="statTotal">知识库: 0 条</div>
+      <div class="stat-item" id="statHits">累计解答: 0 次</div>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="welcome" id="welcomeScreen">
+        <div class="icon">💬</div>
+        <h3>欢迎使用 AI 客服助手</h3>
+        <p id="welcomeDesc">我是你的智能问答助手，已内置健身房常见问题知识库。你可以直接输入问题，我会为你解答。</p>
+        <div class="quick-questions" id="quickQuestions"></div>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <div class="input-wrapper">
+        <textarea id="userInput" placeholder="输入你的问题..." rows="1" onkeydown="handleKeydown(event)" oninput="autoResize(this)"></textarea>
+        <button onclick="sendMessage()" id="sendBtn" title="发送">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 管理员登录弹窗 -->
+<div class="modal-overlay admin-modal" id="adminLoginOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>管理员验证</h2>
+      <button class="modal-close" onclick="closeAdminLogin()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="admin-icon">🔒</div>
+      <div class="admin-title">知识库管理</div>
+      <div class="admin-desc">请输入管理员密码以进入管理后台</div>
+      <div class="password-group">
+        <label>管理员密码</label>
+        <input type="password" id="adminPasswordInput" placeholder="请输入密码" onkeydown="if(event.key==='Enter')doAdminLogin()">
+      </div>
+      <div class="password-error" id="adminPasswordError">密码错误，请重试</div>
+      <button class="btn-admin-login" onclick="doAdminLogin()">进入管理后台</button>
+    </div>
+  </div>
+</div>
+
+<!-- QA 编辑弹窗 -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">添加问答</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>问题 *</label>
+        <input type="text" id="qaQuestion" placeholder="例如：如何重置密码？">
+      </div>
+      <div class="form-group">
+        <label>答案 *</label>
+        <textarea id="qaAnswer" placeholder="详细回答内容..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>关键词（回车添加）</label>
+        <div class="keywords-input" id="keywordsContainer" onclick="document.getElementById('kwInput').focus()">
+          <input type="text" id="kwInput" placeholder="输入关键词后回车" onkeydown="addKeyword(event)">
+        </div>
+        <div class="hint">用于匹配用户提问，建议添加同义词和相关词汇</div>
+      </div>
+      <div class="form-group">
+        <label>分类</label>
+        <select id="qaCategory">
+          <option value="会籍办理">会籍办理</option>
+          <option value="课程预约">课程预约</option>
+          <option value="私教相关">私教相关</option>
+          <option value="运动健身">运动健身</option>
+          <option value="场地设施">场地设施</option>
+          <option value="缴费退费">缴费退费</option>
+          <option value="APP使用">APP使用</option>
+          <option value="其他">其他</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>优先级</label>
+        <select id="qaPriority">
+          <option value="normal">普通</option>
+          <option value="high">高（热门问题）</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-save" onclick="saveQA()" id="saveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+<div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div></div>
+
+<script>
+// ==================== CONFIG ====================
+// 管理员密码（可在服务端环境变量中配置，前端仅做基础验证）
+const ADMIN_PASSWORD = 'admin123';
+
+// 自动检测 API 地址
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:3000'
+  : window.location.origin;
+
+let isOnline = false;
+let isAdmin = false;
+let cachedQAList = [];
+let editingId = null;
+let currentKeywords = [];
+let filterTimer = null;
+
+// ==================== API ====================
+async function api(path, options = {}) {
+  try {
+    const res = await fetch(API_BASE + path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || '请求失败');
+    setOnline(true);
+    return data;
+  } catch (err) {
+    setOnline(false);
+    throw err;
+  }
+}
+
+function setOnline(status) {
+  const changed = isOnline !== status;
+  isOnline = status;
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  const sDot = document.getElementById('serverDot');
+  const sText = document.getElementById('serverStatus');
+  if (status) {
+    dot.className = 'status-dot online';
+    text.textContent = '已连接';
+    sDot.className = 'dot';
+    sText.textContent = '服务器已连接';
+  } else {
+    dot.className = 'status-dot offline';
+    text.textContent = '离线模式';
+    sDot.className = 'dot warn';
+    sText.textContent = '服务器未连接，使用本地缓存';
+  }
+}
+
+// ==================== ADMIN ====================
+function handleAdminToggle() {
+  if (isAdmin) {
+    logoutAdmin();
+  } else {
+    openAdminLogin();
+  }
+}
+
+function openAdminLogin() {
+  document.getElementById('adminLoginOverlay').classList.add('show');
+  document.getElementById('adminPasswordInput').value = '';
+  document.getElementById('adminPasswordError').style.display = 'none';
+  setTimeout(() => document.getElementById('adminPasswordInput').focus(), 100);
+}
+
+function closeAdminLogin() {
+  document.getElementById('adminLoginOverlay').classList.remove('show');
+}
+
+function doAdminLogin() {
+  const pwd = document.getElementById('adminPasswordInput').value;
+  if (pwd === ADMIN_PASSWORD) {
+    isAdmin = true;
+    closeAdminLogin();
+    enterAdminMode();
+    showToast('已进入管理模式', 'success');
+  } else {
+    document.getElementById('adminPasswordError').style.display = 'block';
+    document.getElementById('adminPasswordInput').value = '';
+    document.getElementById('adminPasswordInput').focus();
+  }
+}
+
+function logoutAdmin() {
+  isAdmin = false;
+  leaveAdminMode();
+  showToast('已退出管理模式', 'info');
+}
+
+function enterAdminMode() {
+  document.getElementById('mainContainer').classList.add('admin-mode');
+  document.getElementById('headerSubtitle').textContent = '健身房智能问答 · 管理模式';
+  document.getElementById('welcomeDesc').textContent = '管理员模式：你可以通过左侧面板管理知识库，或直接在聊天中测试问答效果。';
+  document.getElementById('adminToggleBtn').textContent = '🔓 退出管理';
+  // 显示管理员专属按钮
+  document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'flex');
+  renderSidebar();
+}
+
+function leaveAdminMode() {
+  document.getElementById('mainContainer').classList.remove('admin-mode');
+  document.getElementById('headerSubtitle').textContent = '健身房智能问答';
+  document.getElementById('welcomeDesc').textContent = '我是你的智能问答助手，已内置健身房常见问题知识库。你可以直接输入问题，我会为你解答。';
+  document.getElementById('adminToggleBtn').textContent = '🔐 管理';
+  // 隐藏管理员专属按钮
+  document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+}
+
+// ==================== INIT ====================
+async function init() {
+  // 检查 URL 参数是否带 admin 标记
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('admin') === '1') {
+    // URL 带 admin=1 自动弹出登录框
+    setTimeout(openAdminLogin, 500);
+  }
+
+  try {
+    const res = await api('/api/stats');
+    if (res.success) {
+      setOnline(true);
+      await loadFromServer();
+      updateStatsDisplay(res.data);
+      return;
+    }
+  } catch (e) {
+    console.warn('服务器连接失败，使用本地模式', e);
+  }
+  setOnline(false);
+  try {
+    cachedQAList = JSON.parse(localStorage.getItem('ai_cs_gym_cache') || '[]');
+  } catch { cachedQAList = []; }
+  renderSidebar();
+  renderQuickQuestions();
+}
+
+async function loadFromServer() {
+  try {
+    const res = await api('/api/qa');
+    if (res.success) {
+      cachedQAList = res.data;
+      localStorage.setItem('ai_cs_gym_cache', JSON.stringify(cachedQAList));
+      renderSidebar();
+      renderQuickQuestions();
+    }
+  } catch (e) {
+    console.error('加载知识库失败', e);
+  }
+}
+
+function updateStatsDisplay(stats) {
+  document.getElementById('statTotal').textContent = `知识库: ${stats.total} 条`;
+  document.getElementById('statHits').textContent = `累计解答: ${stats.hits} 次`;
+}
+
+// ==================== SIDEBAR ====================
+function toggleSidebar() {
+  if (!isAdmin) return;
+  document.getElementById('sidebar').classList.toggle('hidden');
+}
+
+function renderSidebar() {
+  if (!isAdmin) return;
+  const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+  let filtered = cachedQAList;
+  if (searchTerm) {
+    filtered = cachedQAList.filter(item => {
+      const kws = typeof item.keywords === 'string' ? item.keywords : JSON.stringify(item.keywords || []);
+      return item.question.toLowerCase().includes(searchTerm)
+        || item.answer.toLowerCase().includes(searchTerm)
+        || kws.toLowerCase().includes(searchTerm);
+    });
+  }
+  document.getElementById('qaCount').textContent = cachedQAList.length;
+  const container = document.getElementById('qaList');
+  if (filtered.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-secondary);font-size:13px;">' +
+      (searchTerm ? '没有找到匹配的问答' : '知识库为空，点击下方添加') + '</div>';
+    return;
+  }
+  container.innerHTML = filtered.map(item => `
+    <div class="qa-item" ondblclick="sendQuestion('${escapeHtml(item.question)}')">
+      <div class="q-text">${escapeHtml(item.question)}</div>
+      <div class="a-preview">${escapeHtml(item.answer.substring(0, 60))}...</div>
+      <div class="qa-meta">
+        <span class="tag">${escapeHtml(item.category || '其他')}</span>
+        ${item.priority === 'high' ? '<span class="tag hot">🔥 热门</span>' : ''}
+      </div>
+      <div class="qa-actions">
+        <button onclick="event.stopPropagation(); editQA('${item.id}')">✏️ 编辑</button>
+        <button class="delete" onclick="event.stopPropagation(); deleteQA('${item.id}')">🗑️ 删除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function debounceFilter() {
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(renderSidebar, 200);
+}
+
+// ==================== MODAL ====================
+function openModal(id = null) {
+  if (!isAdmin) return;
+  editingId = id;
+  currentKeywords = [];
+  if (id) {
+    const item = cachedQAList.find(q => q.id === id);
+    if (!item) return;
+    document.getElementById('modalTitle').textContent = '编辑问答';
+    document.getElementById('qaQuestion').value = item.question;
+    document.getElementById('qaAnswer').value = item.answer;
+    document.getElementById('qaCategory').value = item.category || '其他';
+    document.getElementById('qaPriority').value = item.priority || 'normal';
+    const kws = typeof item.keywords === 'string' ? JSON.parse(item.keywords) : (item.keywords || []);
+    currentKeywords = [...kws];
+  } else {
+    document.getElementById('modalTitle').textContent = '添加问答';
+    document.getElementById('qaQuestion').value = '';
+    document.getElementById('qaAnswer').value = '';
+    document.getElementById('qaCategory').value = '会籍办理';
+    document.getElementById('qaPriority').value = 'normal';
+    currentKeywords = [];
+  }
+  renderKeywords();
+  document.getElementById('modalOverlay').classList.add('show');
+  document.getElementById('qaQuestion').focus();
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+  editingId = null;
+  currentKeywords = [];
+}
+
+function addKeyword(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const input = document.getElementById('kwInput');
+    const kw = input.value.trim();
+    if (kw && !currentKeywords.includes(kw)) { currentKeywords.push(kw); renderKeywords(); }
+    input.value = '';
+  }
+}
+
+function removeKeyword(idx) { currentKeywords.splice(idx, 1); renderKeywords(); }
+
+function renderKeywords() {
+  const container = document.getElementById('keywordsContainer');
+  const input = document.getElementById('kwInput');
+  container.innerHTML = '';
+  currentKeywords.forEach((kw, idx) => {
+    const tag = document.createElement('span');
+    tag.className = 'kw-tag';
+    tag.innerHTML = `${escapeHtml(kw)} <span class="remove" onclick="removeKeyword(${idx})">×</span>`;
+    container.insertBefore(tag, input);
+  });
+}
+
+async function saveQA() {
+  if (!isAdmin) return;
+  const question = document.getElementById('qaQuestion').value.trim();
+  const answer = document.getElementById('qaAnswer').value.trim();
+  const category = document.getElementById('qaCategory').value;
+  const priority = document.getElementById('qaPriority').value;
+  if (!question || !answer) { showToast('请填写问题和答案', 'error'); return; }
+
+  let keywords = [...currentKeywords];
+  if (keywords.length === 0) keywords = extractKeywords(question);
+  const payload = { question, answer, keywords, category, priority };
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+
+  try {
+    if (isOnline) {
+      if (editingId) {
+        await api('/api/qa/' + editingId, { method: 'PUT', body: JSON.stringify(payload) });
+      } else {
+        await api('/api/qa', { method: 'POST', body: JSON.stringify(payload) });
+      }
+      await loadFromServer();
+    } else {
+      if (editingId) {
+        const idx = cachedQAList.findIndex(q => q.id === editingId);
+        if (idx !== -1) cachedQAList[idx] = { ...cachedQAList[idx], ...payload, keywords: JSON.stringify(keywords) };
+      } else {
+        cachedQAList.push({
+          id: 'qa_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+          ...payload, keywords: JSON.stringify(keywords), hit_count: 0
+        });
+      }
+      localStorage.setItem('ai_cs_gym_cache', JSON.stringify(cachedQAList));
+      renderSidebar();
+      renderQuickQuestions();
+    }
+    showToast(editingId ? '问答已更新' : '问答已添加', 'success');
+    closeModal();
+  } catch (err) {
+    showToast('操作失败: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '保存';
+  }
+}
+
+async function editQA(id) {
+  if (!isAdmin) return;
+  if (isOnline) {
+    try {
+      const res = await api('/api/qa/' + id);
+      if (res.success) {
+        openModal(id);
+        const item = res.data;
+        document.getElementById('qaQuestion').value = item.question;
+        document.getElementById('qaAnswer').value = item.answer;
+        document.getElementById('qaCategory').value = item.category || '其他';
+        document.getElementById('qaPriority').value = item.priority || 'normal';
+        currentKeywords = typeof item.keywords === 'string' ? JSON.parse(item.keywords) : (item.keywords || []);
+        renderKeywords();
+        return;
+      }
+    } catch (e) { /* fallback */ }
+  }
+  openModal(id);
+}
+
+async function deleteQA(id) {
+  if (!isAdmin) return;
+  if (!confirm('确定删除这条问答吗？')) return;
+  try {
+    if (isOnline) {
+      await api('/api/qa/' + id, { method: 'DELETE' });
+      await loadFromServer();
+    } else {
+      cachedQAList = cachedQAList.filter(q => q.id !== id);
+      localStorage.setItem('ai_cs_gym_cache', JSON.stringify(cachedQAList));
+      renderSidebar();
+      renderQuickQuestions();
+    }
+    showToast('已删除', 'info');
+    const stats = await api('/api/stats').catch(() => null);
+    if (stats?.success) updateStatsDisplay(stats.data);
+  } catch (err) {
+    showToast('删除失败: ' + err.message, 'error');
+  }
+}
+
+// ==================== CHAT ====================
+async function sendMessage(text) {
+  const input = document.getElementById('userInput');
+  const message = text || input.value.trim();
+  if (!message) return;
+  input.value = '';
+  autoResize(input);
+  const welcome = document.getElementById('welcomeScreen');
+  if (welcome) welcome.style.display = 'none';
+  addMessage(message, 'user');
+  showTyping();
+
+  try {
+    if (isOnline) {
+      const res = await api('/api/match', {
+        method: 'POST',
+        body: JSON.stringify({ query: message })
+      });
+      removeTyping();
+      addMessage(res.answer, 'bot', res.related || []);
+    } else {
+      await new Promise(r => setTimeout(r, 500));
+      removeTyping();
+      const response = localMatch(message);
+      addMessage(response.answer, 'bot', response.related);
+    }
+  } catch (err) {
+    removeTyping();
+    addMessage('网络连接异常，请稍后再试。', 'bot', []);
+  }
+}
+
+function sendQuestion(text) { sendMessage(text); }
+
+function addMessage(text, sender, related = []) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = `message ${sender}`;
+  let processed = escapeHtml(text)
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+  let relatedHtml = '';
+  if (related && related.length > 0) {
+    relatedHtml = '<div class="related-qa">相关问题：' +
+      related.map(r => `<a onclick="sendQuestion('${escapeHtml(r.question).replace(/'/g, "\\'")}')">${escapeHtml(r.question)}</a>`).join(' · ') +
+      '</div>';
+  }
+  div.innerHTML = `
+    <div class="avatar">${sender === 'bot' ? '🤖' : '👤'}</div>
+    <div class="bubble">${processed}${relatedHtml}</div>
+  `;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function showTyping() {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'message bot';
+  div.id = 'typingMsg';
+  div.innerHTML = '<div class="avatar">🤖</div><div class="bubble"><div class="typing-indicator"><span></span><span></span><span></span></div></div>';
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeTyping() { const el = document.getElementById('typingMsg'); if (el) el.remove(); }
+
+function localMatch(query) {
+  const queryLower = query.toLowerCase();
+  let bestMatch = null;
+  let bestScore = 0;
+  let allScores = [];
+
+  for (const item of cachedQAList) {
+    let score = 0;
+    const qText = item.question.toLowerCase();
+    const kws = typeof item.keywords === 'string' ? JSON.parse(item.keywords || '[]') : (item.keywords || []);
+
+    if (queryLower === qText) score += 100;
+    else if (qText.includes(queryLower) || queryLower.includes(qText)) score += 60;
+
+    for (const kw of kws) {
+      const kwL = kw.toLowerCase();
+      if (queryLower.includes(kwL)) score += 30 + kwL.length * 2;
+    }
+    if (item.priority === 'high') score += 5;
+    allScores.push({ item, score });
+    if (score > bestScore) { bestScore = score; bestMatch = item; }
+  }
+
+  const related = allScores.filter(s => s.item.id !== bestMatch?.id && s.score > 10).sort((a,b) => b.score - a.score).slice(0, 3).map(s => s.item);
+
+  if (bestMatch && bestScore > 15) {
+    return { answer: bestMatch.answer, related };
+  }
+  return {
+    answer: '抱歉，我暂时没有找到匹配的答案。您可以尝试换一种描述方式，或联系人工客服获取帮助。',
+    related: allScores.filter(s => s.score > 5).sort((a,b) => b.score - a.score).slice(0, 2).map(s => s.item)
+  };
+}
+
+// ==================== QUICK QUESTIONS ====================
+function renderQuickQuestions() {
+  const hot = cachedQAList.filter(q => q.priority === 'high').slice(0, 6);
+  const all = hot.length >= 4 ? hot : cachedQAList.slice(0, 6);
+  const container = document.getElementById('quickQuestions');
+  container.innerHTML = all.map(item =>
+    `<div class="quick-q" onclick="sendQuestion('${escapeHtml(item.question).replace(/'/g, "\\'")}')">${escapeHtml(item.question)}</div>`
+  ).join('');
+}
+
+// ==================== IMPORT / EXPORT ====================
+async function exportData() {
+  if (!isAdmin) return;
+  if (isOnline) {
+    try {
+      const res = await fetch(API_BASE + '/api/qa/export');
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      downloadBlob(blob, `knowledge_base_${new Date().toISOString().slice(0,10)}.json`);
+      showToast(`已导出 ${data.length} 条问答`, 'success');
+      return;
+    } catch (e) { /* fallback */ }
+  }
+  if (cachedQAList.length === 0) { showToast('知识库为空，无法导出', 'error'); return; }
+  const blob = new Blob([JSON.stringify(cachedQAList, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, `knowledge_base_${new Date().toISOString().slice(0,10)}.json`);
+  showToast(`已导出 ${cachedQAList.length} 条问答`, 'success');
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function importData(event) {
+  if (!isAdmin) return;
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!Array.isArray(imported)) { showToast('文件格式错误', 'error'); return; }
+      const valid = imported.every(item => item.question && item.answer);
+      if (!valid) { showToast('数据格式错误：每条需要 question 和 answer', 'error'); return; }
+
+      if (isOnline) {
+        const res = await api('/api/qa/import', {
+          method: 'POST',
+          body: JSON.stringify(imported)
+        });
+        showToast(res.message, 'success');
+        await loadFromServer();
+        const stats = await api('/api/stats').catch(() => null);
+        if (stats?.success) updateStatsDisplay(stats.data);
+      } else {
+        const existingIds = new Set(cachedQAList.map(q => q.id));
+        let added = 0;
+        for (const item of imported) {
+          if (!item.id) item.id = 'qa_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+          if (!existingIds.has(item.id)) {
+            item.keywords = item.keywords || extractKeywords(item.question);
+            item.category = item.category || '其他';
+            item.priority = item.priority || 'normal';
+            cachedQAList.push(item);
+            added++;
+          }
+        }
+        localStorage.setItem('ai_cs_gym_cache', JSON.stringify(cachedQAList));
+        renderSidebar();
+        renderQuickQuestions();
+        showToast(`成功导入 ${added} 条（离线模式，上线后请重新导入）`, 'success');
+      }
+    } catch (err) {
+      showToast('导入失败: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ==================== UTILS ====================
+function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+function extractKeywords(text) {
+  const stops = new Set(['的','了','是','在','有','和','与','或','不','也','都','就','要','会','能','吗','呢','吧','啊','怎','什么','如何','怎么','？','?','！','!']);
+  return [...new Set(text.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ' ').split(/\s+/).filter(w => w.length >= 2 && !stops.has(w)))].slice(0, 8);
+}
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+  toast.innerHTML = `${icons[type] || ''} ${escapeHtml(message)}`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+function handleKeydown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
+
+document.getElementById('modalOverlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+document.getElementById('adminLoginOverlay').addEventListener('click', function(e) { if (e.target === this) closeAdminLogin(); });
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    if (document.getElementById('adminLoginOverlay').classList.contains('show')) closeAdminLogin();
+    else closeModal();
+  }
+});
+
+// 启动
+init();
+</script>
+</body>
+</html>

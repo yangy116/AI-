@@ -1,0 +1,15 @@
+{
+  "name": "gym-customer-service",
+  "version": "1.0.0",
+  "description": "健身房 AI 智能客服系统",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js"
+  },
+  "dependencies": {
+    "sql.js": "^1.11.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "gym-cs-server",
+  "version": "1.0.0",
+  "description": "健身房客服 AI 知识库后端服务",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "init-db": "node server.js --init"
+  },
+  "dependencies": {
+    "sql.js": "^1.11.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0"
+  }
+}
