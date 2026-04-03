@@ -751,9 +751,42 @@ function addKeyword(e) {
 
 function removeKeyword(idx) { currentKeywords.splice(idx, 1); renderKeywords(); }
 
+function startEditKeyword(idx) {
+  const tag = document.querySelector(`.kw-tag[data-idx="${idx}"]`);
+  if (!tag || tag.querySelector('input')) return;
+  const oldKw = currentKeywords[idx];
+  const editInput = document.createElement('input');
+  editInput.type = 'text';
+  editInput.value = oldKw;
+  editInput.className = 'kw-edit-input';
+  editInput.style.cssText = 'width:60px;border:1px solid var(--primary);border-radius:4px;padding:0 4px;font-size:12px;outline:none;';
+  tag.innerHTML = '';
+  tag.appendChild(editInput);
+  editInput.focus();
+  editInput.select();
+
+  const finish = () => {
+    const newKw = editInput.value.trim();
+    if (newKw && newKw !== oldKw) {
+      if (!currentKeywords.includes(newKw)) {
+        currentKeywords[idx] = newKw;
+      } else {
+        currentKeywords.splice(idx, 1);
+      }
+    }
+    renderKeywords();
+  };
+  editInput.addEventListener('blur', finish);
+  editInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); editInput.blur(); }
+    if (e.key === 'Escape') { editInput.value = oldKw; editInput.blur(); }
+  });
+}
+
 function renderKeywords() {
   const container = document.getElementById('keywordsContainer');
   const input = document.getElementById('kwInput');
+  const wasFocused = document.activeElement === input;
   // 清除所有 kw-tag，但保留 input
   container.querySelectorAll('.kw-tag').forEach(tag => tag.remove());
   // 如果 input 不在 container 中，重新添加
@@ -761,11 +794,12 @@ function renderKeywords() {
   currentKeywords.forEach((kw, idx) => {
     const tag = document.createElement('span');
     tag.className = 'kw-tag';
-    tag.innerHTML = `${escapeHtml(kw)} <span class="remove" onclick="removeKeyword(${idx})">×</span>`;
+    tag.setAttribute('data-idx', idx);
+    tag.innerHTML = `<span class="kw-text" onclick="startEditKeyword(${idx})" title="点击编辑">${escapeHtml(kw)}</span> <span class="remove" onclick="removeKeyword(${idx})">×</span>`;
     container.insertBefore(tag, input);
   });
-  // 自动聚焦输入框
-  input.focus();
+  // 只在之前就聚焦时才恢复焦点，避免干扰编辑操作
+  if (wasFocused) input.focus();
 }
 
 async function saveQA() {
@@ -843,6 +877,9 @@ async function deleteQA(id) {
     if (isOnline) {
       await api('/api/qa/' + id, { method: 'DELETE' });
       await loadFromServer();
+      // 刷新统计（不抛错以避免影响在线状态）
+      const stats = await api('/api/stats').catch(() => null);
+      if (stats?.success) updateStatsDisplay(stats.data);
     } else {
       cachedQAList = cachedQAList.filter(q => q.id !== id);
       localStorage.setItem('ai_cs_gym_cache', JSON.stringify(cachedQAList));
@@ -850,8 +887,6 @@ async function deleteQA(id) {
       renderQuickQuestions();
     }
     showToast('已删除', 'info');
-    const stats = await api('/api/stats').catch(() => null);
-    if (stats?.success) updateStatsDisplay(stats.data);
   } catch (err) {
     showToast('删除失败: ' + err.message, 'error');
   }
