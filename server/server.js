@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const initSqlJs = require('sql.js');
 
 const app = express();
@@ -22,8 +23,6 @@ const DB_DIR = isProduction
 const DB_FILE = isProduction
   ? path.join(DB_DIR, 'knowledge.db')
   : (process.env.DB_PATH || path.join(DB_DIR, 'knowledge.db'));
-
-const os = require('os');
 
 let db;
 
