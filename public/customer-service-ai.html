@@ -754,13 +754,18 @@ function removeKeyword(idx) { currentKeywords.splice(idx, 1); renderKeywords(); 
 function renderKeywords() {
   const container = document.getElementById('keywordsContainer');
   const input = document.getElementById('kwInput');
-  container.innerHTML = '';
+  // 清除所有 kw-tag，但保留 input
+  container.querySelectorAll('.kw-tag').forEach(tag => tag.remove());
+  // 如果 input 不在 container 中，重新添加
+  if (!container.contains(input)) container.appendChild(input);
   currentKeywords.forEach((kw, idx) => {
     const tag = document.createElement('span');
     tag.className = 'kw-tag';
     tag.innerHTML = `${escapeHtml(kw)} <span class="remove" onclick="removeKeyword(${idx})">×</span>`;
     container.insertBefore(tag, input);
   });
+  // 自动聚焦输入框
+  input.focus();
 }
 
 async function saveQA() {
