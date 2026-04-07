@@ -263,19 +263,6 @@
   .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--primary); }
   .form-group textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
   .form-group .hint { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
-  .keywords-input {
-    display: flex; flex-wrap: wrap; gap: 6px; padding: 6px;
-    border: 1px solid var(--border); border-radius: 8px; min-height: 40px; cursor: text;
-  }
-  .keywords-input:focus-within { border-color: var(--primary); }
-  .keywords-input .kw-tag {
-    background: var(--bot-bg); color: var(--primary); padding: 2px 8px;
-    border-radius: 4px; font-size: 12px; display: flex; align-items: center; gap: 4px;
-  }
-  .keywords-input .kw-tag .remove { cursor: pointer; font-size: 14px; }
-  .keywords-input input {
-    border: none !important; outline: none; flex: 1; min-width: 80px; padding: 4px; font-size: 13px;
-  }
   .modal-footer {
     padding: 16px 24px; border-top: 1px solid var(--border);
     display: flex; justify-content: flex-end; gap: 8px;
@@ -462,11 +449,9 @@
         <textarea id="qaAnswer" placeholder="详细回答内容..."></textarea>
       </div>
       <div class="form-group">
-        <label>关键词（回车添加）</label>
-        <div class="keywords-input" id="keywordsContainer" onclick="document.getElementById('kwInput').focus()">
-          <input type="text" id="kwInput" placeholder="输入关键词后回车" onkeydown="addKeyword(event)">
-        </div>
-        <div class="hint">用于匹配用户提问，建议添加同义词和相关词汇</div>
+        <label>关键词（用逗号分隔）</label>
+        <input type="text" id="keywordsInput" placeholder="例如：办卡,会员卡,费用,价格" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <div class="hint">用于匹配用户提问，建议添加同义词和相关词汇，用逗号分隔</div>
       </div>
       <div class="form-group">
         <label>分类</label>
@@ -513,7 +498,6 @@ let isOnline = false;
 let isAdmin = false;
 let cachedQAList = [];
 let editingId = null;
-let currentKeywords = [];
 let filterTimer = null;
 
 // ==================== API ====================
@@ -671,7 +655,7 @@ function renderSidebar() {
   let filtered = cachedQAList;
   if (searchTerm) {
     filtered = cachedQAList.filter(item => {
-      const kws = typeof item.keywords === 'string' ? item.keywords : JSON.stringify(item.keywords || []);
+      const kws = parseKws(item.keywords).join(',');
       return item.question.toLowerCase().includes(searchTerm)
         || item.answer.toLowerCase().includes(searchTerm)
         || kws.toLowerCase().includes(searchTerm);
@@ -709,7 +693,6 @@ function debounceFilter() {
 function openModal(id = null) {
   if (!isAdmin) return;
   editingId = id;
-  currentKeywords = [];
   if (id) {
     const item = cachedQAList.find(q => q.id === id);
     if (!item) return;
@@ -718,17 +701,16 @@ function openModal(id = null) {
     document.getElementById('qaAnswer').value = item.answer;
     document.getElementById('qaCategory').value = item.category || '其他';
     document.getElementById('qaPriority').value = item.priority || 'normal';
-    const kws = typeof item.keywords === 'string' ? JSON.parse(item.keywords) : (item.keywords || []);
-    currentKeywords = [...kws];
+    const kws = parseKws(item.keywords);
+    document.getElementById('keywordsInput').value = kws.join(', ');
   } else {
     document.getElementById('modalTitle').textContent = '添加问答';
     document.getElementById('qaQuestion').value = '';
     document.getElementById('qaAnswer').value = '';
     document.getElementById('qaCategory').value = '会籍办理';
     document.getElementById('qaPriority').value = 'normal';
-    currentKeywords = [];
+    document.getElementById('keywordsInput').value = '';
   }
-  renderKeywords();
   document.getElementById('modalOverlay').classList.add('show');
   document.getElementById('qaQuestion').focus();
 }
@@ -736,74 +718,23 @@ function openModal(id = null) {
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('show');
   editingId = null;
-  currentKeywords = [];
 }
 
-function addKeyword(e) {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    const input = document.getElementById('kwInput');
-    const kw = input.value.trim();
-    if (kw && !currentKeywords.includes(kw)) { currentKeywords.push(kw); renderKeywords(); }
-    input.value = '';
+function parseKeywords(str) {
+  if (!str || !str.trim()) return [];
+  return str.split(',').map(s => s.trim()).filter(s => s.length > 0);
+}
+
+// 统一解析 keywords 字段（兼容数组、JSON字符串、普通字符串三种格式）
+function parseKws(kws) {
+  if (!kws) return [];
+  if (Array.isArray(kws)) return kws;
+  if (typeof kws === 'string') {
+    try { const r = JSON.parse(kws); return Array.isArray(r) ? r : [kws]; }
+    catch { return kws.split(',').map(s => s.trim()).filter(Boolean); }
   }
+  return [];
 }
-
-function removeKeyword(idx) { currentKeywords.splice(idx, 1); renderKeywords(); }
-
-function removeKeyword(idx) { currentKeywords.splice(idx, 1); renderKeywords(); }
-
-function startEditKeyword(idx) {
-  const tag = document.querySelector(`.kw-tag[data-idx="${idx}"]`);
-  if (!tag || tag.querySelector('input')) return;
-  const oldKw = currentKeywords[idx];
-  const editInput = document.createElement('input');
-  editInput.type = 'text';
-  editInput.value = oldKw;
-  editInput.className = 'kw-edit-input';
-  editInput.style.cssText = 'width:60px;border:1px solid var(--primary);border-radius:4px;padding:0 4px;font-size:12px;outline:none;';
-  tag.innerHTML = '';
-  tag.appendChild(editInput);
-  editInput.focus();
-  editInput.select();
-
-  const finish = () => {
-    const newKw = editInput.value.trim();
-    if (newKw && newKw !== oldKw) {
-      if (!currentKeywords.includes(newKw)) {
-        currentKeywords[idx] = newKw;
-      } else {
-        currentKeywords.splice(idx, 1);
-      }
-    }
-    renderKeywords();
-  };
-  editInput.addEventListener('blur', finish);
-  editInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); editInput.blur(); }
-    if (e.key === 'Escape') { editInput.value = oldKw; editInput.blur(); }
-  });
-}
-
-function renderKeywords() {
-  const container = document.getElementById('keywordsContainer');
-  const input = document.getElementById('kwInput');
-  const wasFocused = document.activeElement === input;
-  // 清除所有 kw-tag，但保留 input
-  container.querySelectorAll('.kw-tag').forEach(tag => tag.remove());
-  // 如果 input 不在 container 中，重新添加
-  if (!container.contains(input)) container.appendChild(input);
-  currentKeywords.forEach((kw, idx) => {
-    const tag = document.createElement('span');
-    tag.className = 'kw-tag';
-    tag.setAttribute('data-idx', idx);
-    tag.innerHTML = `<span class="kw-text" onclick="startEditKeyword(${idx})" title="点击编辑">${escapeHtml(kw)}</span> <span class="remove" onclick="removeKeyword(${idx})">×</span>`;
-    container.insertBefore(tag, input);
-  });
-  // 只在之前就聚焦时才恢复焦点，避免干扰编辑操作
-  if (wasFocused) input.focus();
-}
-
 
 async function saveQA() {
   if (!isAdmin) return;
@@ -811,9 +742,10 @@ async function saveQA() {
   const answer = document.getElementById('qaAnswer').value.trim();
   const category = document.getElementById('qaCategory').value;
   const priority = document.getElementById('qaPriority').value;
+  const keywordsStr = document.getElementById('keywordsInput').value.trim();
   if (!question || !answer) { showToast('请填写问题和答案', 'error'); return; }
 
-  let keywords = [...currentKeywords];
+  let keywords = parseKeywords(keywordsStr);
   if (keywords.length === 0) keywords = extractKeywords(question);
   const payload = { question, answer, keywords, category, priority };
   const btn = document.getElementById('saveBtn');
@@ -831,11 +763,11 @@ async function saveQA() {
     } else {
       if (editingId) {
         const idx = cachedQAList.findIndex(q => q.id === editingId);
-        if (idx !== -1) cachedQAList[idx] = { ...cachedQAList[idx], ...payload, keywords: JSON.stringify(keywords) };
+        if (idx !== -1) cachedQAList[idx] = { ...cachedQAList[idx], ...payload };
       } else {
         cachedQAList.push({
           id: 'qa_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-          ...payload, keywords: JSON.stringify(keywords), hit_count: 0
+          ...payload, hit_count: 0
         });
       }
       localStorage.setItem('ai_cs_gym_cache', JSON.stringify(cachedQAList));
@@ -857,18 +789,13 @@ async function editQA(id) {
   if (isOnline) {
     try {
       const res = await api('/api/qa/' + id);
-      if (res.success) {
-        openModal(id);
-        const item = res.data;
-        document.getElementById('qaQuestion').value = item.question;
-        document.getElementById('qaAnswer').value = item.answer;
-        document.getElementById('qaCategory').value = item.category || '其他';
-        document.getElementById('qaPriority').value = item.priority || 'normal';
-        currentKeywords = typeof item.keywords === 'string' ? JSON.parse(item.keywords) : (item.keywords || []);
-        renderKeywords();
-        return;
+      if (res.success && res.data) {
+        // 用服务端最新数据更新本地缓存，再统一从缓存打开弹窗
+        const idx = cachedQAList.findIndex(q => q.id === id);
+        if (idx !== -1) cachedQAList[idx] = res.data;
+        else cachedQAList.push(res.data);
       }
-    } catch (e) { /* fallback */ }
+    } catch (e) { /* 网络失败则使用本地缓存 */ }
   }
   openModal(id);
 }
@@ -894,7 +821,6 @@ async function deleteQA(id) {
     showToast('删除失败: ' + err.message, 'error');
   }
 }
-
 
 // ==================== CHAT ====================
 async function sendMessage(text) {
@@ -972,7 +898,7 @@ function localMatch(query) {
   for (const item of cachedQAList) {
     let score = 0;
     const qText = item.question.toLowerCase();
-    const kws = typeof item.keywords === 'string' ? JSON.parse(item.keywords || '[]') : (item.keywords || []);
+    const kws = parseKws(item.keywords);
 
     if (queryLower === qText) score += 100;
     else if (qText.includes(queryLower) || queryLower.includes(qText)) score += 60;
@@ -1112,4 +1038,3 @@ init();
 </script>
 </body>
 </html>
-Commit message: fix: delete QA no longer drops to offline mode; keywords now editable
