@@ -938,14 +938,17 @@ async function exportData() {
   if (!isAdmin) return;
   if (isOnline) {
     try {
+      // 直接下载文件（服务端设置了 Content-Disposition）
       const res = await fetch(API_BASE + '/api/qa/export');
-      const data = await res.json();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      downloadBlob(blob, `knowledge_base_${new Date().toISOString().slice(0,10)}.json`);
-      showToast(`已导出 ${data.length} 条问答`, 'success');
+      if (!res.ok) throw new Error('导出失败');
+      const blob = await res.blob();
+      const filename = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || `knowledge_base_${new Date().toISOString().slice(0,10)}.json`;
+      downloadBlob(blob, filename);
+      showToast('导出成功', 'success');
       return;
-    } catch (e) { /* fallback */ }
+    } catch (e) { console.error('在线导出失败:', e); }
   }
+  // 离线模式：从缓存导出
   if (cachedQAList.length === 0) { showToast('知识库为空，无法导出', 'error'); return; }
   const blob = new Blob([JSON.stringify(cachedQAList, null, 2)], { type: 'application/json' });
   downloadBlob(blob, `knowledge_base_${new Date().toISOString().slice(0,10)}.json`);
@@ -967,41 +970,59 @@ async function importData(event) {
   reader.onload = async function(e) {
     try {
       const imported = JSON.parse(e.target.result);
-      if (!Array.isArray(imported)) { showToast('文件格式错误', 'error'); return; }
-      const valid = imported.every(item => item.question && item.answer);
-      if (!valid) { showToast('数据格式错误：每条需要 question 和 answer', 'error'); return; }
+      if (!Array.isArray(imported)) { showToast('文件格式错误：必须是 JSON 数组', 'error'); return; }
+      if (imported.length === 0) { showToast('文件为空', 'error'); return; }
+      
+      // 数据格式标准化
+      const normalized = imported.map((item, idx) => {
+        if (!item.question || !item.answer) {
+          throw new Error(`第 ${idx + 1} 条数据缺少 question 或 answer`);
+        }
+        return {
+          id: item.id || 'qa_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5) + '_' + idx,
+          question: String(item.question).trim(),
+          answer: String(item.answer).trim(),
+          keywords: Array.isArray(item.keywords) ? item.keywords : 
+                    (typeof item.keywords === 'string' ? parseKws(item.keywords) : extractKeywords(item.question)),
+          category: item.category || '其他',
+          priority: item.priority || 'normal',
+          hit_count: item.hit_count || 0
+        };
+      });
 
       if (isOnline) {
         const res = await api('/api/qa/import', {
           method: 'POST',
-          body: JSON.stringify(imported)
+          body: JSON.stringify(normalized)
         });
-        showToast(res.message, 'success');
+        showToast(res.message || `成功导入 ${normalized.length} 条`, 'success');
         await loadFromServer();
         const stats = await api('/api/stats').catch(() => null);
         if (stats?.success) updateStatsDisplay(stats.data);
       } else {
+        // 离线模式：合并到本地缓存
         const existingIds = new Set(cachedQAList.map(q => q.id));
         let added = 0;
-        for (const item of imported) {
-          if (!item.id) item.id = 'qa_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+        let skipped = 0;
+        for (const item of normalized) {
           if (!existingIds.has(item.id)) {
-            item.keywords = item.keywords || extractKeywords(item.question);
-            item.category = item.category || '其他';
-            item.priority = item.priority || 'normal';
             cachedQAList.push(item);
             added++;
+          } else {
+            skipped++;
           }
         }
         localStorage.setItem('ai_cs_gym_cache', JSON.stringify(cachedQAList));
         renderSidebar();
         renderQuickQuestions();
-        showToast(`成功导入 ${added} 条（离线模式，上线后请重新导入）`, 'success');
+        const skipMsg = skipped > 0 ? `，跳过 ${skipped} 条重复` : '';
+        showToast(`成功导入 ${added} 条${skipMsg}（离线模式）`, 'success');
       }
     } catch (err) {
       showToast('导入失败: ' + err.message, 'error');
     }
   };
+  reader.onerror = () => showToast('文件读取失败', 'error');
   reader.readAsText(file);
   event.target.value = '';
 }
