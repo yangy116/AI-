@@ -8,3 +8,5 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: DEPLOY_TIME
+        value: "2026-04-07-14-30"
