@@ -376,5 +376,3 @@ initDB().then(() => {
 // 进程退出时保存数据库
 process.on('SIGINT', () => { saveDB(); process.exit(0); });
 process.on('SIGTERM', () => { saveDB(); process.exit(0); });
-
-Commit message: fix: rewrite getOne() to use db.exec instead of broken prepare/bind API
