@@ -261,8 +261,60 @@
     border-radius: 8px; font-size: 13px; font-family: inherit; outline: none; transition: border 0.2s;
   }
   .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--primary); }
-  .form-group textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+  .form-group textarea { resize: vertical; min-height: 120px; line-height: 1.5; }
   .form-group .hint { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+  
+  /* Rich Editor */
+  .rich-editor { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .rich-editor:focus-within { border-color: var(--primary); }
+  .editor-toolbar {
+    padding: 8px 12px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+  }
+  .editor-toolbar button {
+    padding: 6px 12px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+  }
+  .editor-toolbar button:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--bot-bg);
+  }
+  .rich-editor textarea {
+    border: none;
+    min-height: 150px;
+    padding: 12px;
+  }
+  .rich-editor textarea:focus {
+    border: none;
+    outline: none;
+  }
+  .editor-hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+  }
+  
+  /* Image Preview in Answer */
+  .answer-content img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin: 8px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
   .modal-footer {
     padding: 16px 24px; border-top: 1px solid var(--border);
     display: flex; justify-content: flex-end; gap: 8px;
@@ -446,7 +498,14 @@
       </div>
       <div class="form-group">
         <label>答案 *</label>
-        <textarea id="qaAnswer" placeholder="详细回答内容..."></textarea>
+        <div class="rich-editor">
+          <div class="editor-toolbar">
+            <button type="button" onclick="insertImageToAnswer()" title="插入图片">🖼️ 插入图片</button>
+            <input type="file" id="answerImageInput" accept="image/*" style="display:none" onchange="handleAnswerImage(event)">
+          </div>
+          <textarea id="qaAnswer" placeholder="详细回答内容...支持插入图片"></textarea>
+          <div class="editor-hint">提示：使用 Markdown 格式，图片会以 Base64 编码存储</div>
+        </div>
       </div>
       <div class="form-group">
         <label>关键词（用逗号分隔）</label>
@@ -668,10 +727,15 @@ function renderSidebar() {
       (searchTerm ? '没有找到匹配的问答' : '知识库为空，点击下方添加') + '</div>';
     return;
   }
-  container.innerHTML = filtered.map(item => `
+  container.innerHTML = filtered.map(item => {
+    // 移除 Markdown 图片标记，只保留文本预览
+    const answerText = item.answer
+      .replace(/!\[[^\]]*\]\([^)]+\)/g, '[图片]')
+      .replace(/\*\*/g, '');
+    return `
     <div class="qa-item" ondblclick="sendQuestion('${escapeHtml(item.question)}')">
       <div class="q-text">${escapeHtml(item.question)}</div>
-      <div class="a-preview">${escapeHtml(item.answer.substring(0, 60))}...</div>
+      <div class="a-preview">${escapeHtml(answerText.substring(0, 60))}...</div>
       <div class="qa-meta">
         <span class="tag">${escapeHtml(item.category || '其他')}</span>
         ${item.priority === 'high' ? '<span class="tag hot">🔥 热门</span>' : ''}
@@ -718,6 +782,52 @@ function openModal(id = null) {
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('show');
   editingId = null;
+}
+
+// ==================== Image Upload for Answer ====================
+function insertImageToAnswer() {
+  document.getElementById('answerImageInput').click();
+}
+
+function handleAnswerImage(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  // 检查文件类型
+  if (!file.type.startsWith('image/')) {
+    showToast('请选择图片文件', 'error');
+    return;
+  }
+  
+  // 检查文件大小（限制 2MB）
+  if (file.size > 2 * 1024 * 1024) {
+    showToast('图片大小不能超过 2MB', 'error');
+    return;
+  }
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64 = e.target.result;
+    const textarea = document.getElementById('qaAnswer');
+    const cursorPos = textarea.selectionStart;
+    const textBefore = textarea.value.substring(0, cursorPos);
+    const textAfter = textarea.value.substring(cursorPos);
+    
+    // 插入 Markdown 格式的图片
+    const imageMarkdown = `\n![image](${base64})\n`;
+    textarea.value = textBefore + imageMarkdown + textAfter;
+    
+    // 恢复光标位置
+    textarea.selectionStart = textarea.selectionEnd = cursorPos + imageMarkdown.length;
+    textarea.focus();
+    
+    showToast('图片已插入', 'success');
+  };
+  reader.onerror = () => showToast('图片读取失败', 'error');
+  reader.readAsDataURL(file);
+  
+  // 清空 input 以便可以重复选择同一文件
+  event.target.value = '';
 }
 
 function parseKeywords(str) {
@@ -860,9 +970,20 @@ function addMessage(text, sender, related = []) {
   const container = document.getElementById('chatMessages');
   const div = document.createElement('div');
   div.className = `message ${sender}`;
-  let processed = escapeHtml(text)
+  
+  // 处理 Markdown 图片 ![alt](url) - 在转义前处理，保留 Base64 图片
+  let processed = text
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0;">');
+  
+  // 处理其他 Markdown 和转义 HTML
+  processed = escapeHtml(processed)
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>');
+  
+  // 恢复图片标签（因为 escapeHtml 会把 <img> 转义了）
+  processed = processed
+    .replace(/&lt;img src=&quot;([^&]+)&quot; alt=&quot;([^&]*)&quot; style=&quot;([^&]+)&quot;&gt;/g, '<img src="$1" alt="$2" style="$3">');
+  
   let relatedHtml = '';
   if (related && related.length > 0) {
     relatedHtml = '<div class="related-qa">相关问题：' +
